@@ -28,6 +28,10 @@ typedef int socklen_t;
 #include <time.h>
 #include "protocol.h"
 
+#ifndef NO_ERROR
+#define NO_ERROR 0
+#endif
+
 #define BUFFER_SIZE 512
 
 void clearwinsock() {
@@ -53,6 +57,17 @@ int is_valid_city(const char *city) {
 int is_valid_type(char type) {
 	char l = tolower(type);
 	return (l == 't' || l == 'h' || l == 'w' || l == 'p');
+}
+
+
+int has_invalid_chars(const char *city) {
+	for (int i = 0; city[i] != '\0'; i++) {
+		// Se il carattere NON è una lettera E NON è uno spazio  è invalido
+		if (!isalpha(city[i]) && city[i] != ' ') {
+			return 1; // Trovato carattere invalido
+		}
+	}
+	return 0; // Tutto ok
 }
 
 float get_temperature(void) { return -10.0 + (rand() / (float)RAND_MAX) * 50.0; }
@@ -125,6 +140,11 @@ int main(int argc, char *argv[]) {
 		struct hostent *he = gethostbyaddr((char *)&client_addr.sin_addr, 4, AF_INET);
 		char *client_name = (he != NULL) ? he->h_name : inet_ntoa(client_addr.sin_addr);
 
+
+		if (strcmp(inet_ntoa(client_addr.sin_addr), "127.0.0.1") == 0) {
+			client_name = "localhost";
+		}
+
 		// Deserializzazione
 		char req_type = buffer[0];
 		char req_city[64];
@@ -139,11 +159,21 @@ int main(int argc, char *argv[]) {
 		char type_lower = tolower(req_type);
 
 		if (!is_valid_type(type_lower)) {
+
 			status = STATUS_INVALID_REQUEST;
-		} else if (!is_valid_city(req_city)) {
+		}
+		else if (has_invalid_chars(req_city)) {
+
+			status = STATUS_INVALID_REQUEST;
+			type_lower = req_type; // Echo del tipo originale anche se invalido per contesto
+		}
+		else if (!is_valid_city(req_city)) {
+
 			status = STATUS_CITY_NOT_FOUND;
 			type_lower = req_type;
-		} else {
+		}
+		else {
+
 			switch (type_lower) {
 				case 't': value = get_temperature(); break;
 				case 'h': value = get_humidity(); break;
@@ -160,6 +190,7 @@ int main(int argc, char *argv[]) {
 		memcpy(send_buf + offset, &net_status, sizeof(unsigned long));
 		offset += sizeof(unsigned long);
 
+		// Nota: se status è INVALID_REQUEST, restituiamo il tipo originale
 		send_buf[offset] = (status == STATUS_INVALID_REQUEST) ? req_type : type_lower;
 		offset += sizeof(char);
 
