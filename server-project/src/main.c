@@ -63,7 +63,7 @@ int is_valid_type(char type) {
 int has_invalid_chars(const char *city) {
 	for (int i = 0; city[i] != '\0'; i++) {
 		// Se il carattere NON è una lettera E NON è uno spazio  è invalido
-		if (!isalpha(city[i]) && city[i] != ' ') {
+		if (!isalnum(city[i]) && city[i] != ' ') {
 			return 1; // Trovato carattere invalido
 		}
 	}
